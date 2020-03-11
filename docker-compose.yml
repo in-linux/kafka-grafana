@@ -1,0 +1,120 @@
+version: "3.5"
+services:
+  zk-1:
+    image: confluentinc/cp-zookeeper:latest
+    container_name: zk-1
+    environment:
+      - ZOOKEEPER_SERVER_ID=1
+      - ZOOKEEPER_CLIENT_PORT=2181
+      - ZOOKEEPER_TICK_TIME=2000
+      - ZOOKEEPER_INIT_LIMIT=5
+      - ZOOKEEPER_SYNC_LIMIT=2
+      - ZOOKEEPER_SERVERS=zk-1:2888:3888;zk-2:2888:3888;zk-3:2888:3888
+   
+  zk-2:
+    image: confluentinc/cp-zookeeper:latest
+    container_name: zk-2
+    environment:
+      - ZOOKEEPER_SERVER_ID=2
+      - ZOOKEEPER_CLIENT_PORT=2181
+      - ZOOKEEPER_TICK_TIME=2000
+      - ZOOKEEPER_INIT_LIMIT=5
+      - ZOOKEEPER_SYNC_LIMIT=2
+      - ZOOKEEPER_SERVERS=zk-1:2888:3888;zk-2:2888:3888;zk-3:2888:3888
+    
+  zk-3:
+    image: confluentinc/cp-zookeeper:latest
+    container_name: zk-3
+    environment:
+      - ZOOKEEPER_SERVER_ID=3
+      - ZOOKEEPER_CLIENT_PORT=2181
+      - ZOOKEEPER_TICK_TIME=2000
+      - ZOOKEEPER_INIT_LIMIT=5
+      - ZOOKEEPER_SYNC_LIMIT=2
+      - ZOOKEEPER_SERVERS=zk-1:2888:3888;zk-2:2888:3888;zk-3:2888:3888 
+
+
+  kafka-1:
+    image: "confluentinc/cp-enterprise-kafka:latest"
+    container_name: kafka-1
+    hostname: kafka-1
+    volumes:
+      - "./kafka-1/:/root"
+    environment:
+      KAFKA_BROKER_ID: 101
+      KAFKA_ZOOKEEPER_CONNECT: zk-1:2181,zk-2:2181,zk-3:2181
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_DELETE_TOPIC_ENABLE: "true"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 2
+      CONFLUENT_METRICS_REPORTER_BOOTSTRAP_SERVERS: "kafka-1:9093,kafka-2:9093,kafka-3:9093"
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-1:9092
+      KAFKA_OPTS: "-javaagent:/root/jmx_prometheus_javaagent-0.12.0.jar=8080:/root/kafka-2_0_0.yml"
+
+  kafka-2:
+    image: "confluentinc/cp-enterprise-kafka:latest"
+    container_name: kafka-2
+    hostname: kafka-2
+    volumes:
+      - "./kafka-2/:/root"
+    environment:
+      KAFKA_BROKER_ID: 102
+      KAFKA_ZOOKEEPER_CONNECT: zk-1:2181,zk-2:2181,zk-3:2181
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_DELETE_TOPIC_ENABLE: "true"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 2
+      CONFLUENT_METRICS_REPORTER_BOOTSTRAP_SERVERS: "kafka-1:9093,kafka-2:9093,kafka-3:9093"
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-2:9092
+      KAFKA_OPTS: "-javaagent:/root/jmx_prometheus_javaagent-0.12.0.jar=8080:/root/kafka-2_0_0.yml"
+
+  kafka-3:
+    image: "confluentinc/cp-enterprise-kafka:latest"
+    container_name: kafka-3
+    hostname: kafka-3
+    volumes:
+      - "./kafka-3/:/root"
+    environment:
+      KAFKA_BROKER_ID: 103
+      KAFKA_ZOOKEEPER_CONNECT: zk-1:2181,zk-2:2181,zk-3:2181
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_DELETE_TOPIC_ENABLE: "true"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 2
+      CONFLUENT_METRICS_REPORTER_BOOTSTRAP_SERVERS: "kafka-1:9093,kafka-2:9093,kafka-3:9093"
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-3:9092
+      KAFKA_OPTS: "-javaagent:/root/jmx_prometheus_javaagent-0.12.0.jar=8080:/root/kafka-2_0_0.yml"
+
+  ksql-server:
+    image: "confluentinc/cp-ksql-server:5.4.1"
+    container_name: ksql-server
+    hostname: ksql-server
+    ports:
+      - "8088:8088"
+      - "7777:7777"
+      - "7778:7778"
+
+    volumes:
+     - "./ksql/:/root"
+    environment:
+      KSQL_CONFIG_DIR: "/etc/ksql"
+      KSQL_BOOTSTRAP_SERVERS: kafka-1:9092,kafka-2:9092,kafka-3:9092
+      KSQL_HOST_NAME: ksql-server
+      KSQL_APPLICATION_ID: "etl-demo"
+      KSQL_LISTENERS: "http://0.0.0.0:8088"
+      KSQL_CACHE_MAX_BYTES_BUFFERING: 0
+      KSQL_PRODUCER_INTERCEPTOR_CLASSES: "io.confluent.monitoring.clients.interceptor.MonitoringProducerInterceptor"
+      KSQL_CONSUMER_INTERCEPTOR_CLASSES: "io.confluent.monitoring.clients.interceptor.MonitoringConsumerInterceptor"
+      KSQL_KSQL_SERVER_UI_ENABLED: "false"
+      KSQL_OPTS: "-javaagent:/root/jmx_prometheus_javaagent-0.12.0.jar=7778:/root/jmx-ksql-prometheus.yml -javaagent:/root/jolokia-jvm-1.6.2-agent.jar=port=7777,host=0.0.0.0"
+
+  prometheus:
+    network_mode: host
+    ports:
+      - 9090:9090
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+
+  grafana:
+    network_mode: host
+    image: grafana/grafana:latest
+    ports:
+      - 3000:3000
